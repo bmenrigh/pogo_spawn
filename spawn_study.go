@@ -25,9 +25,10 @@ type cluster struct {
 	Locked bool
 }
 
-var biome_name = []string{"unk", "cities", "forests", "mountains", "water", "north"}
+var biome_name = []string{"unk", "uniform", "cities", "forests", "mountains", "water", "north"}
 var biome_seeds = [][]int{
 	[]int{},                        // unk
+	[]int{},                        // uniform
 	[]int{100, 137, 509, 568},      // cities
 	[]int{56, 103, 618, 753},       // forests
 	[]int{293, 303, 304, 527},      // mountains
@@ -93,7 +94,7 @@ func main() {
 			continue
 		}
 
-		spstr := fmt.Sprintf("[%.04f, %.04f]", lat, lon)
+		spstr := fmt.Sprintf("[%.03f, %.03f]", lat, lon)
 		//fmt.Fprintf(os.Stderr, "key %s\n", spstr)
 
 		dex_count[dnum]++
@@ -156,7 +157,7 @@ func main() {
 	// 	}
 	// }
 
-	cluster_spawns(5)
+	cluster_spawns(6)
 }
 
 
@@ -198,6 +199,12 @@ func cluster_spawns(numc int) {
 	old_class_vector := make([]*mat.VecDense, numc + 1)
 	class_vector_change := make([]float64, numc + 1)
 
+	uni_slice := make([]float64, len(dex_spawnpoints[0]))
+	for i, _ := range uni_slice {
+		uni_slice[i] = 1.0
+	}
+	class_vector[1] = mat.NewVecDense(len(dex_spawnpoints[0]), uni_slice)
+
 	updated := -1
 	round := 0
 	for updated != 0 {
@@ -205,20 +212,20 @@ func cluster_spawns(numc int) {
 		round++
 
 		// Make new mean class vectors
-		for i := 1; i <= numc; i++ {
+		for i := 2; i <= numc; i++ {
 			old_class_vector[i] = class_vector[i]
 			class_vector[i] = mat.NewVecDense(len(dex_spawnpoints[0]), nil)
 		}
 
 		// compute the mean for each class
 		for d, _ := range dex_class {
-			if dex_class[d].Class != 0 {
+			if dex_class[d].Class > 1 {
 				class_vector[dex_class[d].Class].AddVec(class_vector[dex_class[d].Class], dex_vectors[d])
 			}
 		}
 
 		// find the class vector change
-		for i := 1; i <= numc; i++ {
+		for i := 2; i <= numc; i++ {
 			if old_class_vector[i] != nil {
 				class_vector_change[i] = vec_theta(class_vector[i], old_class_vector[i])
 				fmt.Fprintf(os.Stderr, "Updated class %d mean vector by %.05f degrees\n", i, class_vector_change[i] * 180 / math.Pi)
@@ -232,9 +239,9 @@ func cluster_spawns(numc int) {
 			}
 
 			// If any class needs updating do current class first
-			if dex_class[d].Class != 0 && dex_class[d].Uncer[dex_class[d].Class] > 0.0 {
+			if dex_class[d].Class > 1 && dex_class[d].Uncer[dex_class[d].Class] > 0.0 {
 				for c, _ := range dex_class[d].Dist {
-					if c != 0 && c != dex_class[d].Class {
+					if c > 1 && c != dex_class[d].Class {
 						if dex_class[d].Dist[dex_class[d].Class] + dex_class[d].Uncer[dex_class[d].Class] >= dex_class[d].Dist[c] - dex_class[d].Uncer[c] {
 							dex_class[d].Dist[dex_class[d].Class] = vec_theta(dex_vectors[d], class_vector[dex_class[d].Class])
 							dex_class[d].Uncer[dex_class[d].Class] = 0.0
@@ -246,7 +253,7 @@ func cluster_spawns(numc int) {
 
 			// Any class that is now possibly close enough needs a distance check
 			for c, _ := range dex_class[d].Dist {
-				if c != 0 && c != dex_class[d].Class {
+				if c > 0 && c != dex_class[d].Class {
 					if dex_class[d].Class == 0 ||
 						dex_class[d].Dist[dex_class[d].Class] + dex_class[d].Uncer[dex_class[d].Class] >= dex_class[d].Dist[c] - dex_class[d].Uncer[c] {
 						dex_class[d].Dist[c] = vec_theta(dex_vectors[d], class_vector[c])
