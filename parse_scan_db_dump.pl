@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 
+use Date::Parse;
 use Data::Dumper;
 
 # INSERT INTO `pokemon` (`id`, `pokestop_id`, `spawn_id`, `lat`, `lon`, `weight`, `size`, `expire_timestamp`, `updated`, `pokemon_id`, `move_1`, `move_2`, `gender`, `cp`, `atk_iv`, `def_iv`, `sta_iv`, `form`, `level`, `weather`, `costume`, `first_seen_timestamp`, `changed`, `cell_id`, `expire_timestamp_verified`, `shiny`, `username`, `display_pokemon_id`, `is_ditto`, `seen_type`, `capture_1`, `capture_2`, `capture_3`, `pvp`, `pvp_rankings_great_league`, `pvp_rankings_ultra_league`, `is_event`) VALUES ('10000021849850713756',NULL,NULL,37.36504978683373,-122.11924598793581,NULL,NULL,1670832494,1670831174,198,NULL,NULL,1,NULL,NULL,NULL,NULL,855,NULL,0,0,1670831174,1670831174,9263817583893676032,0,NULL,'pogosj1AT0265',NULL,0,'nearby_cell',NULL,NULL,NULL,NULL,NULL,NULL,0),...
@@ -16,9 +17,9 @@ my %extract_fields = ('id' => 1,
                       'height' => 1,
                       'size' => 1,
                       'pokemon_id' => 1,
-                      'atk_id' => 1,
-                      'def_id' => 1,
-                      'sta_id' => 1,
+                      'atk_iv' => 1,
+                      'def_iv' => 1,
+                      'sta_iv' => 1,
                       'form' => 1,
                       'level' => 1,
                       'shiny' => 1,
@@ -28,6 +29,25 @@ my %extract_fields = ('id' => 1,
                       'first_seen_timestamp' => 1,
                       'is_ditto', => 1,
                       'seen_type', => 1);
+
+my $earliest = str2time('2021-05-02T17:00:00');
+#my $earliest = str2time('2023-05-02T17:00:00');
+#my $latest = str2time('2023-05-22T03:00:00');
+my $latest = str2time('2024-05-22T03:00:00');
+my @gap_start = ();
+my @gap_end = ();
+
+# alolan geodude spotlight hour
+push @gap_start, str2time('2023-05-03T01:00:00');
+push @gap_end, str2time('2023-05-03T02:00:00');
+
+# ponyta spotlight hour
+push @gap_start, str2time('2023-05-10T01:00:00');
+push @gap_end, str2time('2023-05-10T02:00:00');
+
+# bellsprout spotlight hour
+push @gap_start, str2time('2023-05-17T01:00:00');
+push @gap_end, str2time('2023-05-17T02:00:00');
 
 
 my $encounter_limit = 500000;
@@ -44,17 +64,17 @@ my $encounter_ids_ref_old;
 
 my %name = ();
 
-my $GM_PATH = './resources/gamemaster.json.xz';
+my $GM_PATH = '/home/brenrigh/projects/github/pogo_spawn/resources/gamemaster.json.xz';
 
-my $data_cmd_fmt = 'cat "%s" | xz -d | jq -r \'.[] | if .templateId | test("^V[0-9]+_POKEMON_") == true then [(.templateId | capture("^V0*(?<num>[0-9]+)").num), .] | @text "\(.[0]) \(.[1].data.pokemonSettings.pokemonId) \(.[1].data.pokemonSettings.pokedexHeightM) \(.[1].data.pokemonSettings.pokedexWeightKg)" else empty end\'';
+my $data_cmd_fmt = 'cat "%s" | xz -d | jq -r \'.[] | if .templateId | test("^V[0-9]+_POKEMON_") == true then [(.templateId | capture("^V0*(?<num>[0-9]+)").num), .] | @text "\(.[0]) \(.[1].data.pokemonSettings.pokemonId) \(.[1].data.pokemonSettings.pokedexHeightM) \(.[1].data.pokemonSettings.pokedexWeightKg) \(.[1].data.pokemonSettings.stats.baseAttack) \(.[1].data.pokemonSettings.stats.baseDefense) \(.[1].data.pokemonSettings.stats.baseStamina)" else empty end\'';
 
 my $cmd = sprintf($data_cmd_fmt, $GM_PATH);
 my $ret = `$cmd`;
 
-# 862 OBSTAGOON 1.6 46.0
+# 912 QUAXLY 0.5 6.1 120 86 146
 foreach my $line (split(/[\n\r]+/, $ret)) {
-    if ($line =~ m/^(\d+)\s+([A-Z_]+)\s+([\d.]+)\s+([\d.]+)$/) {
-        my ($dex, $namestr, $h, $w) = ($1, $2, $3, $4);
+    if ($line =~ m/^(\d+)\s+([A-Z_]+)\s+([\d.]+)\s+([\d.]+)\s+(\d+)\s+(\d+)\s+(\d+)$/) {
+        my ($dex, $namestr, $h, $w, $atk, $def, $hp) = ($1, $2, $3, $4);
 
         $name{$dex} = $namestr unless (exists $name{$dex});
     }
@@ -118,6 +138,29 @@ while (<STDIN>) {
                 }
             }
 
+            # $spawn{'id'},
+            #     $spawn{'pokemon_id'},
+            #     $spawn{'form'},
+            #     $name{$spawn{'pokemon_id'}},
+            #     $spawn{'shiny'},
+            #     $spawn{'username'},
+            #     $spawn{'level'},
+            #     $spawn{'height'},
+            #     $spawn{'weight'},
+            #     $spawn{'size'},
+            #     $spawn{'first_seen_timestamp'},
+            #     $spawn{'cell_id'},
+            #     $spawn{'weather'},
+            #     $spawn{'lat'},
+            #     $spawn{'lon'}
+
+            foreach my $must_f ('pokemon_id', 'form', 'shiny', 'username', 'level', 'height', 'weight', 'size', 'first_seen_timestamp', 'cell_id', 'weather', 'lat', 'lon') {
+                unless (exists $spawn{$must_f}) {
+                    warn 'Spawn missing field "', $must_f, '": ', $vlist, "\n";
+                    next;
+                }
+            }
+
             # Skip if we don't have basic encounter details (because it was seen on nearby for example)
             if (($spawn{'level'} eq 'NULL') || ($spawn{'weight'} eq 'NULL')) {
                 next;
@@ -134,6 +177,14 @@ while (<STDIN>) {
                 $encounter_ids_ref_old = $encounter_ids_ref;
                 $encounter_ids_ref = \%tmp;
                 $encounter_count = 0;
+            }
+
+
+            next if ($spawn{'first_seen_timestamp'} < $earliest);
+            next if ($spawn{'first_seen_timestamp'} > $latest);
+            for (my $i = 0; $i < scalar @gap_start; $i++) {
+                next if (($spawn{'first_seen_timestamp'} > $gap_start[$i]) &&
+                         ($spawn{'first_seen_timestamp'} < $gap_end[$i]));
             }
 
             #if ($spawn{'height'} eq 'NULL') {
@@ -161,6 +212,19 @@ while (<STDIN>) {
                            $spawn{'lat'},
                            $spawn{'lon'}
                        )), "\n";
+
+            # For IV distribution study
+            # print join("\t", (
+            #                $spawn{'id'},
+            #                $spawn{'pokemon_id'},
+            #                $spawn{'form'},
+            #                $name{$spawn{'pokemon_id'}},
+            #                $spawn{'weather'},
+            #                $spawn{'level'},
+            #                $spawn{'atk_iv'},
+            #                $spawn{'def_iv'},
+            #                $spawn{'sta_iv'},
+            #            )), "\n";
         }
     }
 }

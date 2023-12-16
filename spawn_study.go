@@ -291,10 +291,19 @@ func cluster_spawns(numc int) {
 		}
 	}
 
+	fmt.Fprintf(os.Stderr, "=== class vector matrix ===\n")
+	for i := 1; i <= numc; i++ {
+		for j := 1; j <= numc; j++ {
+			fmt.Fprintf(os.Stderr, "%02.04f\t", vec_theta(class_vector[i], class_vector[j]) * (180.0 / math.Pi))
+		}
+		fmt.Fprintf(os.Stderr, "\n")
+	}
+	fmt.Fprintf(os.Stderr, "===\n")
+
 	for c := 1; c <= numc; c++ {
 		fmt.Fprintf(os.Stderr, "\nCluster class %d (%s):\n", c, biome_name[c]);
 		for d, _ := range dex_class {
-			if dex_class[d].Class == c {
+			if dex_class[d].Class == c && dex_count[d] > 1000 {
 				fmt.Fprintf(os.Stderr, "%d (%s): %0.5f degrees from class mean\n", d, dex_name[d], dex_class[d].Dist[dex_class[d].Class] * 180 / math.Pi);
 			}
 		}

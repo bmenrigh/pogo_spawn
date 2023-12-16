@@ -5,6 +5,13 @@ use warnings;
 
 my %id_bcr = ();
 my %id_ambiguous = ();
+my %id_warned = ();
+
+# Manually determined BCRs for new releases
+$id_bcr{906} = 0.2; # Sprigatito
+$id_bcr{909} = 0.2; # Fuecoco
+$id_bcr{912} = 0.2; # Quaxly
+$id_bcr{915} = 0.5; # Lechonk
 
 my @cpm_table = (0.094,
                  0.16639787,
@@ -92,10 +99,17 @@ while (my $line = <STDIN>) {
 
     my @fields = split(/\t/, $line);
 
-    my ($id, $lvl) = ($fields[1], $fields[6]);
+    my ($id, $name, $lvl) = ($fields[1], $fields[4], $fields[6]);
 
     next if (exists $id_ambiguous{$id});
-    next unless (exists $id_bcr{$id});
+
+    unless (exists $id_bcr{$id}) {
+        unless (exists $id_warned{$id}) {
+            warn sprintf('Need bcr for id #%d (%s)', $id, $name), "\n";
+            $id_warned{$id} = 1;
+        }
+        next;
+    }
 
     $n++;
     $catch_r += cr_by_level($id_bcr{$id}, $lvl, 1.4);
