@@ -20,6 +20,7 @@ my %extract_fields = ('id' => 1,
                       'atk_iv' => 1,
                       'def_iv' => 1,
                       'sta_iv' => 1,
+                      'cp' => 1,
                       'form' => 1,
                       'level' => 1,
                       'shiny' => 1,
@@ -195,23 +196,23 @@ while (<STDIN>) {
             # old height/weight study output
             #print sprintf("%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", $spawn{'pokemon_id'}, $spawn{'form'}, $name{$spawn{'pokemon_id'}}, $spawn{'shiny'}, $spawn{'height'}, $spawn{'weight'}, $spawn{'size'}, $spawn{'first_seen_timestamp'});
 
-            print join("\t", (
-                           $spawn{'id'},
-                           $spawn{'pokemon_id'},
-                           $spawn{'form'},
-                           $name{$spawn{'pokemon_id'}},
-                           $spawn{'shiny'},
-                           $spawn{'username'},
-                           $spawn{'level'},
-                           $spawn{'height'},
-                           $spawn{'weight'},
-                           $spawn{'size'},
-                           $spawn{'first_seen_timestamp'},
-                           $spawn{'cell_id'},
-                           $spawn{'weather'},
-                           $spawn{'lat'},
-                           $spawn{'lon'}
-                       )), "\n";
+            # print join("\t", (
+            #                $spawn{'id'},
+            #                $spawn{'pokemon_id'},
+            #                $spawn{'form'},
+            #                $name{$spawn{'pokemon_id'}},
+            #                $spawn{'shiny'},
+            #                $spawn{'username'},
+            #                $spawn{'level'},
+            #                $spawn{'height'},
+            #                $spawn{'weight'},
+            #                $spawn{'size'},
+            #                $spawn{'first_seen_timestamp'},
+            #                $spawn{'cell_id'},
+            #                $spawn{'weather'},
+            #                $spawn{'lat'},
+            #                $spawn{'lon'}
+            #            )), "\n";
 
             # For IV distribution study
             # print join("\t", (
@@ -225,6 +226,19 @@ while (<STDIN>) {
             #                $spawn{'def_iv'},
             #                $spawn{'sta_iv'},
             #            )), "\n";
+
+            # For CP formula checking
+             print join("\t", (
+                            $spawn{'id'},
+                            $spawn{'pokemon_id'},
+                            $spawn{'form'},
+                            $name{$spawn{'pokemon_id'}},
+                            $spawn{'level'},
+                            $spawn{'atk_iv'},
+                            $spawn{'def_iv'},
+                            $spawn{'sta_iv'},
+                            $spawn{'cp'}
+                        )), "\n";
         }
     }
 }
