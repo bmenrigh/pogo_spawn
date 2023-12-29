@@ -139,106 +139,167 @@ while (<STDIN>) {
                 }
             }
 
-            # $spawn{'id'},
-            #     $spawn{'pokemon_id'},
-            #     $spawn{'form'},
-            #     $name{$spawn{'pokemon_id'}},
-            #     $spawn{'shiny'},
-            #     $spawn{'username'},
-            #     $spawn{'level'},
-            #     $spawn{'height'},
-            #     $spawn{'weight'},
-            #     $spawn{'size'},
-            #     $spawn{'first_seen_timestamp'},
-            #     $spawn{'cell_id'},
-            #     $spawn{'weather'},
-            #     $spawn{'lat'},
-            #     $spawn{'lon'}
+            process_spawn(\%spawn);
+        }
+    } elsif ($line =~ m/^\d+(?:\t[^\t]+)+$/) {
+        # 10000263853250579420	\N	8834262390869	37.2111452521199	-121.889746651873	13.3841896057129	0.83698666095734	3	1703746124	1703745926	225	291	391	1	773	3	312	2671	29	0	0	1703745924	1703745926	9263395521752465408	40	1	0	pogosj912251	\N	0	encounter	0.15811884403229	0.22753965854645	0.29123616218567	\N	\N	\N	0
 
-            foreach my $must_f ('pokemon_id', 'form', 'shiny', 'username', 'level', 'height', 'weight', 'size', 'first_seen_timestamp', 'cell_id', 'weather', 'lat', 'lon') {
-                unless (exists $spawn{$must_f}) {
-                    warn 'Spawn missing field "', $must_f, '": ', $vlist, "\n";
-                    next;
-                }
+        #warn 'Seem to have gotten new text table format', "\n";
+        my @enc_vals = split(/\t/, $line);
+
+        if (scalar @enc_vals != 39) {
+            warn 'Got possible new table format with ', scalar(@enc_vals), ' fields: ', $line, "\n";
+            next;
+        }
+
+
+
+        # CREATE TABLE `pokemon` (
+        # `id` varchar(25) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+        # `pokestop_id` varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+        # `spawn_id` bigint unsigned DEFAULT NULL,
+        # `lat` double(18,14) NOT NULL,
+        # `lon` double(18,14) NOT NULL,
+        # `weight` double(18,14) DEFAULT NULL,
+        # `height` double(18,14) DEFAULT NULL,
+        # `size` tinyint unsigned DEFAULT NULL,
+        # `expire_timestamp` int unsigned DEFAULT NULL,
+        # `updated` int unsigned DEFAULT NULL,
+        # `pokemon_id` smallint unsigned NOT NULL,
+        # `move_1` smallint unsigned DEFAULT NULL,
+        # `move_2` smallint unsigned DEFAULT NULL,
+        # `gender` tinyint unsigned DEFAULT NULL,
+        # `cp` smallint unsigned DEFAULT NULL,
+        # `atk_iv` tinyint unsigned DEFAULT NULL,
+        # `def_iv` tinyint unsigned DEFAULT NULL,
+        # `sta_iv` tinyint unsigned DEFAULT NULL,
+        # `form` smallint unsigned DEFAULT NULL,
+        # `level` tinyint unsigned DEFAULT NULL,
+        # `weather` tinyint unsigned DEFAULT NULL,
+        # `costume` tinyint unsigned DEFAULT NULL,
+        # `first_seen_timestamp` int unsigned NOT NULL,
+        # `changed` int unsigned NOT NULL DEFAULT '0',
+        # `cell_id` bigint unsigned DEFAULT NULL,
+        # `iv` float(5,2) unsigned GENERATED ALWAYS AS (((((`atk_iv` + `def_iv`) + `sta_iv`) * 100) / 45)) VIRTUAL,
+        # `expire_timestamp_verified` tinyint unsigned NOT NULL,
+        # `shiny` tinyint unsigned DEFAULT NULL,
+        # `username` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+        # `display_pokemon_id` smallint unsigned DEFAULT NULL,
+        # `is_ditto` tinyint unsigned NOT NULL DEFAULT '0',
+        # `seen_type` enum('wild','encounter','nearby_stop','nearby_cell','lure_wild','lure_encounter') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+        # `capture_1` double(18,14) DEFAULT NULL,
+        # `capture_2` double(18,14) DEFAULT NULL,
+        # `capture_3` double(18,14) DEFAULT NULL,
+        # `pvp` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        # `pvp_rankings_great_league` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        # `pvp_rankings_ultra_league` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+        # `is_event` tinyint unsigned NOT NULL DEFAULT '0',
+
+        my @klist = ('id', 'pokestop_id', 'spawn_id', 'lat', 'lon', 'weight', 'height', 'size', 'expire_timestamp', 'updated', 'pokemon_id', 'move_1', 'move_2', 'gender', 'cp', 'atk_iv', 'def_iv', 'sta_iv', 'form', 'level', 'weather', 'costume', 'first_seen_timestamp', 'changed', 'cell_id', 'iv', 'expire_timestamp', 'shiny', 'username', 'display_pokemon_id', 'is_ditto', 'seen_type', 'capture_1', 'capture_2', 'capture_3', 'pvp', 'pvp_rankings_great_league', 'pvp_rankings_ultra_league', 'is_event');
+
+        my %spawn = ();
+
+        for (my $i = 0; $i < scalar(@enc_vals); $i++) {
+            if ($enc_vals[$i] eq '\\N') {
+                $enc_vals[$i] = 'NULL';
             }
 
-            # Skip if we don't have basic encounter details (because it was seen on nearby for example)
-            if (($spawn{'level'} eq 'NULL') || ($spawn{'weight'} eq 'NULL')) {
-                next;
-            }
+            $spawn{$klist[$i]} = $enc_vals[$i];
+        }
 
-            # Prevent reporting a spawn mulitple times
-            next if (exists $encounter_ids_ref->{$spawn{'id'}});
-            next if (exists $encounter_ids_ref_old->{$spawn{'id'}});
-            $encounter_ids_ref->{$spawn{'id'}} = 1;
-            $encounter_count += 1;
+        process_spawn(\%spawn);
+    }
 
-            if ($encounter_count >= $encounter_limit) {
-                my %tmp = ();
-                $encounter_ids_ref_old = $encounter_ids_ref;
-                $encounter_ids_ref = \%tmp;
-                $encounter_count = 0;
-            }
+}
 
+sub process_spawn {
+    my $spawnref = shift;
 
-            next if ($spawn{'first_seen_timestamp'} < $earliest);
-            next if ($spawn{'first_seen_timestamp'} > $latest);
-            for (my $i = 0; $i < scalar @gap_start; $i++) {
-                next if (($spawn{'first_seen_timestamp'} > $gap_start[$i]) &&
-                         ($spawn{'first_seen_timestamp'} < $gap_end[$i]));
-            }
+    my %spawn = %{$spawnref};
 
-            #if ($spawn{'height'} eq 'NULL') {
-            #    print Data::Dumper->Dump([\%spawn], ['*spawn']), "\n";
-            #    print $enc, "\n";
-            #}
-
-            # old height/weight study output
-            #print sprintf("%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", $spawn{'pokemon_id'}, $spawn{'form'}, $name{$spawn{'pokemon_id'}}, $spawn{'shiny'}, $spawn{'height'}, $spawn{'weight'}, $spawn{'size'}, $spawn{'first_seen_timestamp'});
-
-            # print join("\t", (
-            #                $spawn{'id'},
-            #                $spawn{'pokemon_id'},
-            #                $spawn{'form'},
-            #                $name{$spawn{'pokemon_id'}},
-            #                $spawn{'shiny'},
-            #                $spawn{'username'},
-            #                $spawn{'level'},
-            #                $spawn{'height'},
-            #                $spawn{'weight'},
-            #                $spawn{'size'},
-            #                $spawn{'first_seen_timestamp'},
-            #                $spawn{'cell_id'},
-            #                $spawn{'weather'},
-            #                $spawn{'lat'},
-            #                $spawn{'lon'}
-            #            )), "\n";
-
-            # For IV distribution study
-            # print join("\t", (
-            #                $spawn{'id'},
-            #                $spawn{'pokemon_id'},
-            #                $spawn{'form'},
-            #                $name{$spawn{'pokemon_id'}},
-            #                $spawn{'weather'},
-            #                $spawn{'level'},
-            #                $spawn{'atk_iv'},
-            #                $spawn{'def_iv'},
-            #                $spawn{'sta_iv'},
-            #            )), "\n";
-
-            # For CP formula checking
-             print join("\t", (
-                            $spawn{'id'},
-                            $spawn{'pokemon_id'},
-                            $spawn{'form'},
-                            $name{$spawn{'pokemon_id'}},
-                            $spawn{'level'},
-                            $spawn{'atk_iv'},
-                            $spawn{'def_iv'},
-                            $spawn{'sta_iv'},
-                            $spawn{'cp'}
-                        )), "\n";
+    foreach my $must_f ('pokemon_id', 'form', 'shiny', 'username', 'level', 'height', 'weight', 'size', 'first_seen_timestamp', 'cell_id', 'weather', 'lat', 'lon') {
+        unless (exists $spawn{$must_f}) {
+            # warn 'Spawn missing field "', $must_f, '": ', $vlist, "\n";
+            warn 'Spawn missing field "', $must_f, "\n";
+            return;
         }
     }
+
+    # Skip if we don't have basic encounter details (because it was seen on nearby for example)
+    if (($spawn{'level'} eq 'NULL') || ($spawn{'weight'} eq 'NULL')) {
+        return;
+    }
+
+    # Prevent reporting a spawn mulitple times
+    return if (exists $encounter_ids_ref->{$spawn{'spawn_id'}});
+    return if (exists $encounter_ids_ref_old->{$spawn{'spawn_id'}});
+    $encounter_ids_ref->{$spawn{'spawn_id'}} = 1;
+    $encounter_count += 1;
+
+    if ($encounter_count >= $encounter_limit) {
+        my %tmp = ();
+        $encounter_ids_ref_old = $encounter_ids_ref;
+        $encounter_ids_ref = \%tmp;
+        $encounter_count = 0;
+    }
+
+
+    return if ($spawn{'first_seen_timestamp'} < $earliest);
+    return if ($spawn{'first_seen_timestamp'} > $latest);
+    for (my $i = 0; $i < scalar @gap_start; $i++) {
+        next if (($spawn{'first_seen_timestamp'} > $gap_start[$i]) &&
+                 ($spawn{'first_seen_timestamp'} < $gap_end[$i]));
+    }
+
+    #if ($spawn{'height'} eq 'NULL') {
+    #    print Data::Dumper->Dump([\%spawn], ['*spawn']), "\n";
+    #    print $enc, "\n";
+    #}
+
+    # old height/weight study output
+    #print sprintf("%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", $spawn{'pokemon_id'}, $spawn{'form'}, $name{$spawn{'pokemon_id'}}, $spawn{'shiny'}, $spawn{'height'}, $spawn{'weight'}, $spawn{'size'}, $spawn{'first_seen_timestamp'});
+
+    print join("\t", (
+                   $spawn{'spawn_id'},
+                   $spawn{'pokemon_id'},
+                   $spawn{'form'},
+                   $name{$spawn{'pokemon_id'}},
+                   $spawn{'shiny'},
+                   $spawn{'username'},
+                   $spawn{'level'},
+                   $spawn{'height'},
+                   $spawn{'weight'},
+                   $spawn{'size'},
+                   $spawn{'first_seen_timestamp'},
+                   $spawn{'cell_id'},
+                   $spawn{'weather'},
+                   $spawn{'lat'},
+                   $spawn{'lon'}
+               )), "\n";
+
+    # For IV distribution study
+    # print join("\t", (
+    #                $spawn{'id'},
+    #                $spawn{'pokemon_id'},
+    #                $spawn{'form'},
+    #                $name{$spawn{'pokemon_id'}},
+    #                $spawn{'weather'},
+    #                $spawn{'level'},
+    #                $spawn{'atk_iv'},
+    #                $spawn{'def_iv'},
+    #                $spawn{'sta_iv'},
+    #            )), "\n";
+
+    # For CP formula checking
+    # print join("\t", (
+    #                $spawn{'spawn_id'},
+    #                $spawn{'pokemon_id'},
+    #                $spawn{'form'},
+    #                $name{$spawn{'pokemon_id'}},
+    #                $spawn{'level'},
+    #                $spawn{'atk_iv'},
+    #                $spawn{'def_iv'},
+    #                $spawn{'sta_iv'},
+    #                $spawn{'cp'}
+    #            )), "\n";
 }
